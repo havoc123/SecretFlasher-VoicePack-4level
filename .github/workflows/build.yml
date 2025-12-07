@@ -16,44 +16,39 @@ jobs:
         with:
           dotnet-version: '6.0.x'
 
-      - name: Create Custom Project and Build
+      - name: Create Project & Build
+        shell: pwsh
         run: |
-          # 创建项目目录
           mkdir SecretFlasher.VoicePack
           cd SecretFlasher.VoicePack
-          
-          # 直接写自定义 csproj（绕过 dotnet new，指定 net48 + 只加 HarmonyX）
-          @'
+
+          # 直接写 csproj（单行 heredoc，彻底避免 YAML 语法坑）
+          Set-Content -Path SecretFlasher.VoicePack.csproj -Value @'
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>SecretFlasher.VoicePack</AssemblyName>
     <RootNamespace>SecretFlasher.VoicePack</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <MonoMod_CheckTargetRuntime>false</MonoMod_CheckTargetRuntime> <!-- 强制跳过 MonoMod net10.0 检查 -->
+    <MonoMod_CheckTargetRuntime>false</MonoMod_CheckTargetRuntime>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="HarmonyX" Version="2.11.2" />
+    <PackageReference Include="HarmonyX" Version="2.12.0" />
   </ItemGroup>
 </Project>
-'@ | Out-File -FilePath SecretFlasher.VoicePack.csproj -Encoding UTF8
-          
-          # 删除默认文件（如果有）
-          if (Test-Path Class1.cs) { del Class1.cs }
-          
-          # 复制仓库里所有 .cs 文件
+'@
+
+          # 复制你仓库里所有的 .cs 文件进来
           Get-ChildItem ../../ -Recurse -Filter *.cs | ForEach-Object {
-            if ($_.FullName -notmatch "SecretFlasher\.VoicePack") {
+            if ($_.FullName -notmatch 'SecretFlasher\.VoicePack') {
               Copy-Item $_.FullName . -Force
-              Write-Host "已复制: $($_.Name)"
+              Write-Host "已复制代码: $($_.Name)"
             }
           }
-          
-          # 只加 HarmonyX（BepInEx 运行时引用，不需 NuGet）
+
+          # 恢复依赖 + 编译 Release
           dotnet restore
-          
-          # 编译 Release
-          dotnet build -c Release
+          dotnet build -c Release --no-restore
 
       - name: Upload DLL
         uses: actions/upload-artifact@v4
