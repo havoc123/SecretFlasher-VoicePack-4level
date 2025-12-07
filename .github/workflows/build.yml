@@ -11,34 +11,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET 6 (用来编译)
+      - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '6.0.x'
 
-      # 直接用 csproj 方式创建项目（最稳，绕过 -f net48 限制）
-      - name: Create csproj
+      - name: Build Project
         run: |
+          # 创建项目文件夹
           mkdir SecretFlasher.VoicePack
           cd SecretFlasher.VoicePack
+
+          # 创建 net48 项目
           dotnet new classlib
-          
-          # 手动改成 net48（这招永远有效）
           (Get-Content SecretFlasher.VoicePack.csproj) -replace '<TargetFramework>net6.0</TargetFramework>', '<TargetFramework>net48</TargetFramework>' | Set-Content SecretFlasher.VoicePack.csproj
-          
-          # 删除自动生成的 Class1.cs
           del Class1.cs
-          
-          # 复制你的代码进来
-          copy ..\VoicePackPlugin.cs .
-          
-          # 添加 BepInEx 和 Harmony 依赖
+
+          # 自动查找仓库里任意 .cs 文件并复制（不管在哪、叫什么名字）
+          Get-ChildItem .. -Recurse -Filter *.cs | ForEach-Object {
+            Copy-Item $_.FullName .
+            Write-Host "复制代码文件: $($_.Name)"
+          }
+
+          # 添加依赖
           dotnet add package BepInEx.Core --version 6.0.0
           dotnet add package HarmonyX --version 2.11.2
 
-      - name: Build Release DLL
-        run: |
-          cd SecretFlasher.VoicePack
+          # 编译
           dotnet build -c Release
 
       - name: Upload DLL
