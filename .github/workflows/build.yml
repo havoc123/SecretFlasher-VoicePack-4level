@@ -1,42 +1,38 @@
-name: Build VoicePack DLL
+name: Build Plugin
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '6.0.x'
-
-      - name: Create Project & Build
-        shell: pwsh
-        run: |
-          mkdir SecretFlasher.VoicePack
-          cd SecretFlasher.VoicePack
-
-          # 直接写 csproj（单行 heredoc，彻底避免 YAML 语法坑）
-          # 复制你仓库里所有的 .cs 文件进来
-          Get-ChildItem ../../ -Recurse -Filter *.cs | ForEach-Object {
-            if ($_.FullName -notmatch 'SecretFlasher\.VoicePack') {
-              Copy-Item $_.FullName . -Force
-              Write-Host "已复制代码: $($_.Name)"
-            }
-          }
-
-          # 恢复依赖 + 编译 Release
-          dotnet restore
-          dotnet build -c Release --no-restore
-
-      - name: Upload DLL
-        uses: actions/upload-artifact@v4
-        with:
-          name: SecretFlasher.VoicePack.dll
-          path: SecretFlasher.VoicePack/bin/Release/net48/SecretFlasher.VoicePack.dll
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '6.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Create libs directory
+      run: |
+        New-Item -ItemType Directory -Force -Path libs
+        # 这里需要添加游戏的相关DLL文件
+        # 你可以上传必要的DLL到仓库的libs目录，或从其他来源获取
+        
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: Plugin
+        path: bin/Release/net472/SecretFlasherVoicePack.dll
