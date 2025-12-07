@@ -23,21 +23,6 @@ jobs:
           cd SecretFlasher.VoicePack
 
           # 直接写 csproj（单行 heredoc，彻底避免 YAML 语法坑）
-          Set-Content -Path SecretFlasher.VoicePack.csproj -Value @'
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
-    <AssemblyName>SecretFlasher.VoicePack</AssemblyName>
-    <RootNamespace>SecretFlasher.VoicePack</RootNamespace>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <MonoMod_CheckTargetRuntime>false</MonoMod_CheckTargetRuntime>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="HarmonyX" Version="2.12.0" />
-  </ItemGroup>
-</Project>
-'@
-
           # 复制你仓库里所有的 .cs 文件进来
           Get-ChildItem ../../ -Recurse -Filter *.cs | ForEach-Object {
             if ($_.FullName -notmatch 'SecretFlasher\.VoicePack') {
