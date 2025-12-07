@@ -1,36 +1,18 @@
 name: Build DLL
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '6.0.x'
-
-      - name: Create Project and Build
-        run: |
-          dotnet new classlib -n SecretFlasher.VoicePack -f net48
-          cd SecretFlasher.VoicePack
-          # 复制代码到项目
-          echo '你的 csproj 内容' > SecretFlasher.VoicePack.csproj  # 稍后加
-          # 但简单版：直接用 inline
-          dotnet add package BepInEx.Core --version 6.0.0
-          dotnet add package HarmonyX --version 2.11.2
-          # 假设代码在根目录，复制
-          xcopy ..\\VoicePackPlugin.cs . /Y
-          dotnet build -c Release
-
-      - name: Upload DLL
-        uses: actions/upload-artifact@v4
-        with:
-          name: VoicePack-DLL
-          path: SecretFlasher.VoicePack/bin/Release/net48/SecretFlasher.VoicePack.dll
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v3
+      with: { dotnet-version: 6.0.x }
+    - run: |
+        dotnet new classlib -n VoicePack -f net48
+        cd VoicePack
+        xcopy ..\VoicePackPlugin.cs . /Y
+        dotnet add package BepInEx.Core --version 6.0.0
+        dotnet add package HarmonyX --version 2.11.2
+        dotnet build -c Release
+    - uses: actions/upload-artifact@v4
+      with: { name: DLL, path: VoicePack/bin/Release/net48/SecretFlasher.VoicePack.dll }
