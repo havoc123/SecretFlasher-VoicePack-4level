@@ -3,10 +3,12 @@ using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -82,8 +84,8 @@ namespace SecretFlasher.VoicePack
             foreach (var lvl in levels) _clips[lvl.category] = new List<AudioClip>();
             _lastEntryTimes = new float[levels.Length];
             _lastLoopTimes = new float[levels.Length];
-            Array.Fill(_lastEntryTimes, -999f);
-            Array.Fill(_lastLoopTimes, -999f);
+            for (int i = 0; i < _lastEntryTimes.Length; i++) _lastEntryTimes[i] = -999f;
+            for (int i = 0; i < _lastLoopTimes.Length; i++) _lastLoopTimes[i] = -999f;
 
             new Harmony("herpderp135.secretflasher.voicepack").PatchAll();
             QueueAudioLoads();
@@ -92,7 +94,6 @@ namespace SecretFlasher.VoicePack
 
         private void Update()
         {
-            PumpLoads();
             float ec = GetCurrentEcstasy();
             if (ec >= 0f) DriveState(ec);
             PumpCatchup();
@@ -218,39 +219,52 @@ namespace SecretFlasher.VoicePack
         private void QueueAudioLoads()
         {
             var baseDir = Path.Combine(Paths.PluginPath, "SecretFlasher.VoicePack", "audio");
-            if (!Directory.Exists(baseDir)) { L.LogWarning($"[VoicePack] 未找到 audio 文件夹: {baseDir}"); return; }
+            if (!Directory.Exists(baseDir))
+            {
+                L.LogWarning($"[VoicePack] 未找到 audio 文件夹: {baseDir}");
+                return;
+            }
 
             foreach (var lvl in levels)
             {
                 var dir = Path.Combine(baseDir, lvl.category);
                 if (!Directory.Exists(dir)) continue;
+
                 var files = Directory.GetFiles(dir, "*.*", SearchOption.TopDirectoryOnly)
-                    .Where(f => f.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase));
-                foreach (var f in files) _queue.Enqueue((f, lvl.category));
+                    .Where(f => f.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase) ||
+                                f.EndsWith(".wav", StringComparison.OrdinalIgnoreCase));
+
+                foreach (var path in files)
+                {
+                    Instance.StartCoroutine(LoadClipCoroutine(path, lvl.category));
+                }
             }
-            L.LogInfo($"[VoicePack] 发现 {_queue.Count} 个语音文件");
+            L.LogInfo($"[VoicePack] 开始异步加载语音文件...");
         }
 
-        private void PumpLoads()
+        private IEnumerator LoadClipCoroutine(string path, string cat)
         {
-            while (_inflight.Count < MAX_INFLIGHT && _queue.Count > 0)
+            using (var req = UnityWebRequest.Get("file://" + path))
             {
-                var item = _queue.Dequeue();
-                var req = UnityWebRequestMultimedia.GetAudioClip("file://" + item.path, AudioType.UNKNOWN);
-                req.SendWebRequest();
-                _inflight.Add(new Pending { path = item.path, cat = item.cat, req = req });
-            }
+                req.method = UnityWebRequest.kHttpVerbGET;
+                req.downloadHandler = new DownloadHandlerAudioClip(req.url, AudioType.UNKNOWN);
 
-            for (int i = _inflight.Count - 1; i >= 0; i--)
-            {
-                var p = _inflight[i];
-                if (!p.req.isDone) continue;
-                if (p.req.result == UnityWebRequest.Result.Success)
+                yield return req.SendWebRequest();
+
+                if (req.result == UnityWebRequest.Result.Success)
                 {
-                    var clip = DownloadHandlerAudioClip.GetContent(p.req);
-                    if (clip) _clips[p.cat].Add(clip);
+                    var handler = req.downloadHandler as DownloadHandlerAudioClip;
+                    if (handler?.audioClip != null)
+                    {
+                        handler.audioClip.name = Path.GetFileNameWithoutExtension(path);
+                        _clips[cat].Add(handler.audioClip);
+                        L.LogInfo($"[VoicePack] 加载完成: {handler.audioClip.name}");
+                    }
                 }
-                _inflight.RemoveAt(i);
+                else
+                {
+                    L.LogWarning($"[VoicePack] 加载失败 {path}: {req.error}");
+                }
             }
         }
     }
